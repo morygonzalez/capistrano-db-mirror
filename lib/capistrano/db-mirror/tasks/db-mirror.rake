@@ -3,22 +3,29 @@ namespace :db do
     def load_config
       c = YAML.load_file("#{Rails.root}/config/database.yml")[Rails.env] # c == config
       c.symbolize_keys!
-    end 
+    end
 
-    desc "Create database dump via mysqldump"
-    task :dump, [:dumpfile] => :environment do |t, args|
+    desc "Create database dump via dump command"
+    task :dump, [:dumpfile, :ignore_table] => :environment do |t, args|
       raise "arg :dumpfile required" if args[:dumpfile].nil?
 
       # execute mysqldump command using database.yml credentials
       c = load_config
-      cmds = ["mysqldump", "-u #{c[:username]}", "--password='#{c[:password]}'"]
-      cmds << ((c[:socket].present?)? "-S #{c[:socket]}" : "-h #{c[:host]}")
+      case c[:adapter]
+      when 'mysql'
+        cmds = ["mysqldump", "-u #{c[:username]}", "--password='#{c[:password]}'"]
+        cmds << ((c[:socket].present?)? "-S #{c[:socket]}" : "-h #{c[:host]}")
+      when 'postgresql'
+        cmds = ["env PGPASSWORD=#{c[:password]}", "pg_dump", "-U #{c[:username]}", "-O", "-x"]
+        cmds << "-h #{c[:host]}"
+        cmds << "-T #{args[:ignore_table]}" if args[:ignore]
+      end
       cmds.concat [c[:database], "| gzip > #{args[:dumpfile]}"]
       p "writing #{args[:dumpfile]}..."
       `#{cmds.join " "}`
-    end 
+    end
 
-    desc "Load mysqldump file to local database"
+    desc "Load dump file to local database"
     task :load, [:dumpfile] => :environment do |t, args|
       raise "The operation is not allowed in #{Rails.env}!!" if Capistrano::DbMirror.excludes.map(&:to_s).include?(Rails.env.to_s)
       raise "arg :dumpfile does not exist: #{args[:dumpfile]}" unless File.exists? args[:dumpfile]
@@ -31,16 +38,21 @@ namespace :db do
       # - load dumpfile
       begin
         c = load_config
-        cmds = ["mysql", "-u #{c[:username]}", "--password='#{c[:password]}'"]
-        cmds << "-S #{c[:socket]}" if c[:socket].present?
+        case c[:adapter]
+        when 'mysql'
+          cmds = ["mysql", "-u #{c[:username]}", "--password='#{c[:password]}'"]
+          cmds << "-S #{c[:socket]}" if c[:socket].present?
+        when 'postgresql'
+          cmds = ["env PGPASSWORD=#{c[:password]}", "pg_restore", "-U #{c[:username]}"]
+        end
         cmds << "-h #{c[:host]}"   if c[:host].present?
         cmds.concat [c[:database], %Q|-e "source #{rawfile}"|]
         p "loading #{args[:dumpfile]} into database..."
-        p cmds.join " " 
+        p cmds.join " "
         `#{cmds.join " "}`
       ensure
         `rm #{rawfile}`
-      end 
+      end
     end
 
     desc "Rollback db"
@@ -68,9 +80,9 @@ namespace :db do
         if sets.present? && wheres.present?
           sql = %|UPDATE `#{table_name}` SET #{sets.join(', ')} WHERE #{wheres.join(' AND ')}|
           puts "Execute: #{sql}"
-          ActiveRecord::Base.connection.execute sql 
+          ActiveRecord::Base.connection.execute sql
         end
       end
     end
-  end 
+  end
 end

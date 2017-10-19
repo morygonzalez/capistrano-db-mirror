@@ -28,17 +28,17 @@ namespace :db do
         p "loading remote dump #{local_f} into database..."
         execute "bundle exec rake db:mirror:load[#{local_f}]"
 
-        unless ENV['SKIP_SANITIZE'] == '1' 
+        unless ENV['SKIP_SANITIZE'] == '1'
           p "sanitizing database..."
           execute "bundle exec rake db:mirror:sanitize"
         else
           p "skipping db sanitization..."
-        end 
+        end
 
         # local - remove dumps
         p "removing backups except the latest local backup..."
         execute "ls -1 -d #{local_d}/*.dump.gz | grep -v #{local_backup_f} | xargs rm"
       end
-    end 
+    end
   end
-end 
+end
