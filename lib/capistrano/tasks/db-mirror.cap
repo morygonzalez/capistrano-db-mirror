@@ -3,7 +3,7 @@ namespace :db do
   task :mirror do
     on roles(:db), primary: true do
       now = Time.now.strftime "%Y%m%d-%H%M%S"
-      filename = "#{now}-#{rails_env}.dump.gz"
+      filename = "#{now}-#{fetch(:rails_env)}.dump.gz"
 
       # remote - create dump file
       remote_f = File.join('/tmp', filename)

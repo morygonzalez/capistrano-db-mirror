@@ -45,7 +45,7 @@ namespace :db do
         when 'postgresql'
           cmds = ["env PGPASSWORD=#{c[:password]}", "pg_restore", "-U #{c[:username]}"]
         end
-        cmds << "-h #{c[:host]}"   if c[:host].present?
+        cmds << "-h #{c[:host]}" if c[:host].present?
         cmds.concat [c[:database], %Q|-e "source #{rawfile}"|]
         p "loading #{args[:dumpfile]} into database..."
         p cmds.join " "
